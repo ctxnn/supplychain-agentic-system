@@ -79,7 +79,7 @@ const CustomerPortal: React.FC = () => {
           return { content: 'I received your message.', data: response };
         };
         
-        const { content, data } = processResponse(response);
+        const { content } = processResponse(response);
         
         // Add assistant's response to chat
         const assistantMessage: ChatMessage = {
@@ -325,7 +325,7 @@ const CustomerPortal: React.FC = () => {
                         <p className={`text-xs mt-2 ${
                           message.role === 'user' ? 'text-primary-100' : 'text-gray-500'
                         }`}>
-                          {timestamp.toLocaleTimeString()}
+                          {timestamp?.toLocaleTimeString()}
                         </p>
                       </div>
                       {message.role === 'user' && (

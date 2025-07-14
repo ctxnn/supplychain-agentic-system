@@ -199,7 +199,7 @@ const Dashboard: React.FC = () => {
                 }`}></div>
                 <span className="text-gray-800 flex-1">{notification.message}</span>
                 <span className="text-xs text-gray-500">
-                  {notification.timestamp.toLocaleTimeString()}
+                  {notification.timestamp?.toLocaleTimeString()}
                 </span>
               </motion.div>
             ))}

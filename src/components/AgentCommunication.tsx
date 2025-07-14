@@ -102,7 +102,7 @@ const AgentCommunication: React.FC = () => {
               new Date(m.timestamp).toDateString() === new Date().toDateString()
             ).length, icon: Activity, color: 'from-purple-500 to-purple-600' },
             { label: 'Response Time', value: '1.2s', icon: Clock, color: 'from-orange-500 to-orange-600' }
-          ].map((metric, index) => (
+          ].map((metric) => (
             <div
               key={metric.label}
               className="bg-white/70 backdrop-blur-sm rounded-2xl p-6 border border-white/20"
@@ -165,7 +165,7 @@ const AgentCommunication: React.FC = () => {
                             <span className="text-gray-600">{message.to}</span>
                           </div>
                           <span className="text-xs text-gray-500">
-                            {message.timestamp.toLocaleTimeString()}
+                            {message.timestamp?.toLocaleTimeString()}
                           </span>
                         </div>
                         <p className="text-gray-800 text-sm">{message.content}</p>

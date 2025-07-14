@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { BaseAgent } from './BaseAgent';
+import { BaseAgent } from './BaseAgent.js';
 import { 
   AgentMessage, 
   CustomerAgentState, 
@@ -8,8 +8,8 @@ import {
   NLPAnalysis,
   Entity,
   Order
-} from './types';
-import { NLPService } from '../services/NLPService';
+} from './types.js';
+import { NLPService } from '../services/NLPService.js';
 
 export class CustomerAgent extends BaseAgent {
   private state: CustomerAgentState = {
@@ -21,7 +21,7 @@ export class CustomerAgent extends BaseAgent {
   };
 
   constructor() {
-    super('customer-agent', 'customer');
+    super('customer-agent');
     this.state = CustomerAgentStateSchema.parse({
       conversationHistory: [],
       currentOrder: null,
@@ -52,7 +52,7 @@ export class CustomerAgent extends BaseAgent {
   private createErrorResponse(to: string, message: string): AgentMessage {
     return {
       id: uuidv4(),
-      from: this.agentId,
+      from: this.name,
       to,
       type: 'error',
       content: message,
@@ -70,7 +70,7 @@ export class CustomerAgent extends BaseAgent {
   ): AgentMessage {
     return {
       id: uuidv4(),
-      from: this.agentId,
+      from: this.name,
       to,
       type,
       content,
@@ -88,7 +88,7 @@ export class CustomerAgent extends BaseAgent {
   ): AgentMessage {
     return {
       id: uuidv4(),
-      from: this.agentId,
+      from: this.name,
       to,
       type,
       content,
@@ -133,7 +133,7 @@ export class CustomerAgent extends BaseAgent {
 
     productEntities.forEach((product: Entity, index: number) => {
       const quantityValue = quantityEntities[index]?.value;
-      const quantity = quantityValue ? parseInt(quantityValue, 10) : 1; // Default to 1 if not specified
+      const quantity = quantityValue ? parseInt(quantityValue, 10) : 0; // Default to 0 to trigger clarification
       items.push({
         name: product.value.charAt(0).toUpperCase() + product.value.slice(1),
         quantity: quantity,
@@ -149,7 +149,7 @@ export class CustomerAgent extends BaseAgent {
 
   private async handleGeneralQuery(
     message: AgentMessage, 
-    _analysis: unknown // Prefix with _ to indicate intentionally unused
+    _analysis: any // Prefix with _ to indicate intentionally unused
   ): Promise<AgentMessage[]> {
     void _analysis;
     // For now, just echo back with a generic response
@@ -198,7 +198,7 @@ export class CustomerAgent extends BaseAgent {
         metadata: { analysis }
       });
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('[CustomerAgent] Error processing message:', error);
       responses.push(this.createErrorResponse(
         message.from,
@@ -213,7 +213,7 @@ export class CustomerAgent extends BaseAgent {
     message: AgentMessage,
     analysis: NLPAnalysis
   ): Promise<AgentMessage[]> {
-    const orderId = analysis.entities.find(e => e.type === 'order_id')?.value;
+    const orderId = analysis.entities.find((e: any) => e.type === 'order_id')?.value;
 
     if (!orderId) {
       return [this.createErrorResponse(message.from, 'No order ID was specified.')];
@@ -223,8 +223,8 @@ export class CustomerAgent extends BaseAgent {
       const orderStatus = await this.getOrderStatus(orderId);
       const responseContent = `The status of order #${orderId} is: ${orderStatus}.`;
       
-      return [this.createResponse(message.from, MessageType.ORDER_STATUS, responseContent, { orderId, orderStatus })];
-    } catch (error) {
+      return [this.createResponse(message.from, 'order-status' as MessageType, responseContent, { orderId, orderStatus })];
+    } catch (error: any) {
       console.error(`[CustomerAgent] Error fetching order status for orderId: ${orderId}`, error);
       return [this.createErrorResponse(message.from, `Could not retrieve status for order #${orderId}.`)];
     }
@@ -254,9 +254,9 @@ export class CustomerAgent extends BaseAgent {
     analysis: NLPAnalysis
   ): Promise<AgentMessage[]> {
     if (this.state.conversationState === 'awaiting_quantity' && this.state.pendingAction) {
-      const quantityValue = analysis.entities.find(e => e.type === 'quantity')?.value ?? '1';
+      const quantityValue = analysis.entities.find((e: any) => e.type === 'quantity')?.value ?? '1';
       const quantity = parseInt(quantityValue, 10);
-      const items = this.state.pendingAction.items.map(item => ({ ...item, quantity }));
+      const items = this.state.pendingAction.items.map((item: any) => ({ ...item, quantity }));
 
       this.state.conversationState = 'processing';
       this.state.pendingAction = null;
@@ -372,7 +372,7 @@ export class CustomerAgent extends BaseAgent {
           }
         ));
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error processing order request:', error);
       responses.push(this.createResponse(
         message.from,
@@ -393,7 +393,7 @@ export class CustomerAgent extends BaseAgent {
     analysis: NLPAnalysis
   ): Promise<AgentMessage[]> {
     const responses: AgentMessage[] = [];
-    const orderIdEntity = analysis.entities.find(e => e.type === 'order_id');
+    const orderIdEntity = analysis.entities.find((e: any) => e.type === 'order_id');
     
     if (orderIdEntity) {
       // Forward cancellation to order agent
@@ -564,8 +564,7 @@ export class CustomerAgent extends BaseAgent {
         items: validatedItems,
         status: 'pending',
         storeId: orderData.storeId || 'STORE-001',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        createdAt: new Date(),
         estimatedDelivery: orderData.estimatedDelivery || new Date(Date.now() + 3600000) // 1 hour from now
       };
 

@@ -8,8 +8,8 @@ import {
   TrendingUp,
   RefreshCw,
   Search,
-  Filter,
-  BarChart3,
+
+
   Zap
 } from 'lucide-react';
 import { useSupplyChain } from '../context/SupplyChainContext';
@@ -84,7 +84,7 @@ const InventoryAgent: React.FC = () => {
             { label: 'Low Stock Alerts', value: lowStockItems.length, icon: AlertTriangle, color: 'from-red-500 to-red-600' },
             { label: 'Total Inventory Value', value: `$${totalValue.toLocaleString()}`, icon: TrendingUp, color: 'from-green-500 to-green-600' },
             { label: 'Auto-restocks Today', value: '12', icon: Zap, color: 'from-purple-500 to-purple-600' }
-          ].map((metric, index) => (
+          ].map((metric) => (
             <div
               key={metric.label}
               className="bg-white/70 backdrop-blur-sm rounded-2xl p-6 border border-white/20"
@@ -156,12 +156,12 @@ const InventoryAgent: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {filteredInventory.map((item, index) => (
+                {filteredInventory.map((item) => (
                   <motion.tr
                     key={`${item.storeId}-${item.sku}`}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    transition={{ delay: index * 0.05 }}
+                    transition={{ delay: 0.05 }}
                     className="hover:bg-gray-50/50"
                   >
                     <td className="px-6 py-4 whitespace-nowrap">

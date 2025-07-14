@@ -1,6 +1,6 @@
 import { ChatOpenAI } from '@langchain/openai';
 import { AgentState } from './state.js';
-import { CustomerAgent } from './CustomerAgent.js';
+import { CustomerAgent } from './CustomerAgent.ts';
 import { InventoryAgent } from './InventoryAgent.js';
 import { StoreManagerAgent } from './StoreManagerAgent.js';
 import { RouteAgent } from './RouteAgent.js';

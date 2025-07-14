@@ -30,8 +30,7 @@ export const OrderSchema = z.object({
   })),
   status: z.enum(['pending', 'confirmed', 'shipped', 'delivered', 'cancelled']),
   storeId: z.string(),
-  createdAt: z.string(),
-  updatedAt: z.string().optional(),
+  createdAt: z.date(),
   estimatedDelivery: z.date().optional(),
   location: z.object({
     lat: z.number(),
@@ -63,34 +62,37 @@ export const StoreSchema = z.object({
   status: z.enum(['active', 'maintenance', 'closed'])
 });
 
-// Define message types
-export const MessageType = {
-  ORDER: 'order',
-  CANCEL_ORDER: 'cancel_order',
-  MODIFY_ORDER: 'modify_order',
-  INVENTORY: 'inventory',
-  ROUTE: 'route',
-  NOTIFICATION: 'notification',
-  EMERGENCY: 'emergency',
-  INVENTORY_QUERY: 'inventory-query',
-  TRACK_ORDER: 'track-order',
-  ORDER_STATUS: 'order-status',
-  RESPONSE: 'response',
-  ERROR: 'error'
-} as const;
+// Define message types using Zod enums
+export const MessageTypeEnum = z.enum([
+  'order',
+  'cancel_order',
+  'modify_order',
+  'inventory',
+  'route',
+  'notification',
+  'emergency',
+  'inventory-query',
+  'track-order',
+  'order-status',
+  'response',
+  'error',
+  'user-message',
+]);
+export type MessageType = z.infer<typeof MessageTypeEnum>;
 
-export type MessageType = typeof MessageType[keyof typeof MessageType];
+export const MessageStatusEnum = z.enum(['sent', 'delivered', 'processed', 'received']);
+export type MessageStatus = z.infer<typeof MessageStatusEnum>;
 
 // Agent message schemas
 export const AgentMessageSchema = z.object({
   id: z.string(),
   from: z.string(),
   to: z.string(),
-  type: z.nativeEnum(MessageType),
+  type: MessageTypeEnum,
   content: z.string(),
   timestamp: z.date(),
-  status: z.enum(['sent', 'delivered', 'processed']),
-  data: z.record(z.any()).optional()
+  status: MessageStatusEnum,
+  data: z.record(z.any()).optional(),
 });
 
 // Agent state schemas

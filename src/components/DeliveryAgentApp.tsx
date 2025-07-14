@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -9,17 +9,13 @@ import {
   Clock,
   CheckCircle,
   Package,
-  Phone,
-  MessageCircle,
-  Camera,
-  AlertTriangle
+  Phone
 } from 'lucide-react';
 import { useSupplyChain } from '../context/SupplyChainContext';
 
 const DeliveryAgentApp: React.FC = () => {
   const navigate = useNavigate();
   const { state, dispatch } = useSupplyChain();
-  const [activeDelivery, setActiveDelivery] = useState<string | null>(null);
 
   const deliveryOrders = state.orders.filter(order => order.status === 'shipped');
 

@@ -9,9 +9,9 @@ import {
   Route,
   MessageSquare,
   Activity,
-  Users,
+
   TrendingUp,
-  AlertTriangle
+
 } from 'lucide-react';
 import { useSupplyChain } from '../context/SupplyChainContext';
 
@@ -118,7 +118,7 @@ const Dashboard: React.FC = () => {
           transition={{ delay: 0.1 }}
           className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8"
         >
-          {metrics.map((metric, index) => (
+          {metrics.map((metric) => (
             <div
               key={metric.label}
               className="bg-white/70 backdrop-blur-sm rounded-2xl p-6 border border-white/20 hover:bg-white/80 transition-all duration-300"
@@ -144,24 +144,24 @@ const Dashboard: React.FC = () => {
         >
           <h2 className="text-2xl font-bold text-gray-900 mb-6">Agent Interfaces</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {agentCards.map((agent, index) => (
+            {agentCards.map((card) => (
               <motion.div
-                key={agent.id}
+                key={card.id}
                 initial={{ y: 20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.1 * index }}
+                transition={{ delay: 0.1 }}
                 whileHover={{ y: -4, scale: 1.02 }}
                 className="group cursor-pointer"
-                onClick={() => navigate(agent.path)}
+                onClick={() => navigate(card.path)}
               >
                 <div className="bg-white/70 backdrop-blur-sm rounded-2xl p-6 border border-white/20 hover:bg-white/80 transition-all duration-300 hover:shadow-xl">
-                  <div className={`w-12 h-12 bg-gradient-to-r ${agent.color} rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300`}>
-                    <agent.icon className="w-6 h-6 text-white" />
+                  <div className={`w-12 h-12 bg-gradient-to-r ${card.color} rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300`}>
+                    <card.icon className="w-6 h-6 text-white" />
                   </div>
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2">{agent.title}</h3>
-                  <p className="text-gray-600 mb-4 text-sm leading-relaxed">{agent.description}</p>
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">{card.title}</h3>
+                  <p className="text-gray-600 mb-4 text-sm leading-relaxed">{card.description}</p>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-primary-600">{agent.stats}</span>
+                    <span className="text-sm font-medium text-primary-600">{card.stats}</span>
                     <div className="w-6 h-6 rounded-full bg-primary-100 flex items-center justify-center group-hover:bg-primary-200 transition-colors">
                       <div className="w-2 h-2 bg-primary-500 rounded-full"></div>
                     </div>

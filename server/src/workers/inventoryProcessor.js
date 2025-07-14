@@ -2,7 +2,7 @@ import Inventory from '../models/Inventory.js';
 import Store from '../models/Store.js';
 import User from '../models/User.js';
 import { logger } from '../utils/logger.js';
-import { io } from '../server.js';
+import { io } from '../server.ts';
 
 const processInventoryQueue = async (job) => {
   const { type, data } = job.data;

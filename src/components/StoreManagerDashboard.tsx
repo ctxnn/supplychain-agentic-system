@@ -7,9 +7,9 @@ import {
   Package,
   AlertTriangle,
   TrendingUp,
-  Users,
+
   ShoppingCart,
-  Activity,
+
   RefreshCw,
   MapPin
 } from 'lucide-react';
@@ -164,7 +164,7 @@ const StoreManagerDashboard: React.FC = () => {
               color: 'from-purple-500 to-purple-600',
               change: '+8%'
             }
-          ].map((metric, index) => (
+          ].map((metric) => (
             <div
               key={metric.label}
               className="bg-white/70 backdrop-blur-sm rounded-2xl p-6 border border-white/20 hover:bg-white/80 transition-all duration-300"
@@ -219,16 +219,14 @@ const StoreManagerDashboard: React.FC = () => {
                   cx="50%"
                   cy="50%"
                   labelLine={false}
-                  label={(entry) => entry.name}
                   outerRadius={80}
                   fill="#8884d8"
                   dataKey="value"
                 >
-                  {categoryData.map((entry, index) => (
+                  {categoryData.map((_, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
-                <Tooltip />
               </PieChart>
             </ResponsiveContainer>
           </motion.div>

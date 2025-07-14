@@ -1,11 +1,12 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { AgentOrchestrator } from '../agents/AgentOrchestrator';
 import { AgentMessage } from '../agents/types';
+import { useWebSocket } from './WebSocketContext';
 
 interface AgentContextType {
   orchestrator: AgentOrchestrator;
   messages: AgentMessage[];
-  agentHealth: Record<string, any>;
+  agentHealth: Record<string, unknown>;
   sendMessage: (input: string) => Promise<string>;
   updateInventory: (storeId: string, sku: string, quantity: number) => Promise<void>;
   setRouteOptimization: (mode: 'time' | 'fuel' | 'distance') => Promise<void>;
@@ -16,21 +17,27 @@ const AgentContext = createContext<AgentContextType | null>(null);
 export const AgentProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [orchestrator] = useState(() => new AgentOrchestrator());
   const [messages, setMessages] = useState<AgentMessage[]>([]);
-  const [agentHealth, setAgentHealth] = useState<Record<string, any>>({});
+  const [agentHealth, setAgentHealth] = useState<Record<string, unknown>>({});
+  const { isConnected, registerHandler } = useWebSocket();
 
+  // Handle incoming WebSocket messages
   useEffect(() => {
-    // Update messages and health periodically
-    const interval = setInterval(() => {
-      setMessages(orchestrator.getMessageHistory());
-      setAgentHealth(orchestrator.getAgentHealth());
-    }, 1000);
+    // Register a handler for agent messages
+    const unregister = registerHandler((message: AgentMessage) => {
+      setMessages(prev => [...prev, message]);
+    });
 
-    return () => clearInterval(interval);
+    // Initial sync
+    setMessages(orchestrator.getMessageHistory());
+    setAgentHealth(orchestrator.getAgentHealth());
+
+    return unregister;
+  }, [registerHandler, orchestrator]);
+
+  const sendMessage = useCallback(async (input: string): Promise<string> => {
+    // Only use orchestrator for message handling
+    return orchestrator.handleCustomerChat(input);
   }, [orchestrator]);
-
-  const sendMessage = async (input: string): Promise<string> => {
-    return await orchestrator.handleCustomerChat(input);
-  };
 
   const updateInventory = async (storeId: string, sku: string, quantity: number): Promise<void> => {
     await orchestrator.updateInventory(storeId, sku, quantity);

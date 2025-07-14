@@ -1,4 +1,4 @@
-import { StateGraph, END } from '@langchain/core';
+// import { StateGraph, END } from '@langchain/core';
 import { v4 as uuidv4 } from 'uuid';
 import { AgentMessage, AgentMessageSchema } from './types';
 
@@ -15,15 +15,15 @@ export abstract class BaseAgent {
 
   // Abstract methods that each agent must implement
   abstract processMessage(message: AgentMessage): Promise<AgentMessage[]>;
-  abstract getState(): any;
-  abstract updateState(newState: any): void;
+  abstract getState(): unknown;
+  abstract updateState(newState: unknown): void;
 
   // Common messaging functionality
   async sendMessage(
     to: string, 
     type: AgentMessage['type'], 
     content: string, 
-    data?: Record<string, any>
+    data?: Record<string, unknown>
   ): Promise<AgentMessage> {
     const message: AgentMessage = {
       id: uuidv4(),
@@ -81,7 +81,7 @@ export abstract class BaseAgent {
     to: string,
     type: AgentMessage['type'],
     content: string,
-    data?: Record<string, any>
+    data?: Record<string, unknown>
   ): AgentMessage {
     return {
       id: uuidv4(),

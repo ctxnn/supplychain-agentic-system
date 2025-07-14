@@ -53,36 +53,14 @@ type SupplyChainAction =
   | { type: 'UPDATE_ORDER_STATUS'; payload: { orderId: string; status: Order['status'] } }
   | { type: 'UPDATE_INVENTORY'; payload: { storeId: string; sku: string; quantity: number } }
   | { type: 'ADD_AGENT_MESSAGE'; payload: AgentMessage }
-  | { type: 'ADD_NOTIFICATION'; payload: { message: string; type: string } }
+  | { type: 'ADD_NOTIFICATION'; payload: { id: string; message: string; type: string; timestamp: Date } }
   | { type: 'SIMULATE_REAL_TIME_UPDATE' };
 
+// Helper function to generate order IDs
+const generateOrderId = () => `ORD-${Date.now()}`;
+
 const initialState: SupplyChainState = {
-  orders: [
-    {
-      id: 'ORD-001',
-      customerId: 'CUST-001',
-      items: [
-        { sku: 'SKU-001', name: 'Organic Bananas', quantity: 3, price: 2.99 },
-        { sku: 'SKU-002', name: 'Greek Yogurt', quantity: 2, price: 5.99 }
-      ],
-      status: 'shipped',
-      storeId: 'STORE-001',
-      createdAt: new Date(Date.now() - 3600000),
-      estimatedDelivery: new Date(Date.now() + 1800000),
-      location: { lat: 36.1627, lng: -86.7816 }
-    },
-    {
-      id: 'ORD-002',
-      customerId: 'CUST-002',
-      items: [
-        { sku: 'SKU-003', name: 'Wireless Headphones', quantity: 1, price: 129.99 }
-      ],
-      status: 'confirmed',
-      storeId: 'STORE-002',
-      createdAt: new Date(Date.now() - 1800000),
-      estimatedDelivery: new Date(Date.now() + 5400000)
-    }
-  ],
+  orders: [],
   inventory: [
     { storeId: 'STORE-001', sku: 'SKU-001', name: 'Organic Bananas', quantity: 45, reserved: 3, category: 'Produce', price: 2.99 },
     { storeId: 'STORE-001', sku: 'SKU-002', name: 'Greek Yogurt', quantity: 23, reserved: 2, category: 'Dairy', price: 5.99 },
@@ -95,11 +73,7 @@ const initialState: SupplyChainState = {
     { id: 'STORE-002', name: 'Walmart Supercenter - Franklin', location: { lat: 35.9254, lng: -86.8689 }, address: '3600 Mallory Ln, Franklin, TN', manager: 'Mike Chen', status: 'active' },
     { id: 'STORE-003', name: 'Walmart Supercenter - Murfreesboro', location: { lat: 35.8456, lng: -86.3903 }, address: '2315 S Church St, Murfreesboro, TN', manager: 'Lisa Rodriguez', status: 'maintenance' }
   ],
-  agentMessages: [
-    { id: 'MSG-001', from: 'Customer Agent', to: 'Inventory Agent', type: 'order', content: 'Stock check for SKU-001 at STORE-001', timestamp: new Date(Date.now() - 300000), status: 'processed' },
-    { id: 'MSG-002', from: 'Inventory Agent', to: 'Relocation Agent', type: 'inventory', content: 'Low stock alert: SKU-002 at STORE-001', timestamp: new Date(Date.now() - 180000), status: 'delivered' },
-    { id: 'MSG-003', from: 'Route Agent', to: 'Delivery Agent', type: 'route', content: 'Optimal route calculated for ORD-001', timestamp: new Date(Date.now() - 120000), status: 'processed' }
-  ],
+  agentMessages: [],
   notifications: [
     { id: 'NOT-001', message: 'Order ORD-001 out for delivery', type: 'success', timestamp: new Date(Date.now() - 600000) },
     { id: 'NOT-002', message: 'Low stock alert: Greek Yogurt at Nashville store', type: 'warning', timestamp: new Date(Date.now() - 300000) }
@@ -142,10 +116,10 @@ const supplyChainReducer = (state: SupplyChainState, action: SupplyChainAction):
         notifications: [
           ...state.notifications,
           {
-            id: `NOT-${Date.now()}`,
+            id: action.payload.id,
             message: action.payload.message,
             type: action.payload.type,
-            timestamp: new Date()
+            timestamp: action.payload.timestamp
           }
         ]
       };

@@ -2,7 +2,7 @@ import Order from '../models/Order.js';
 import User from '../models/User.js';
 import Store from '../models/Store.js';
 import { logger } from '../utils/logger.js';
-import { io } from '../server.js';
+import { io } from '../server.ts';
 
 const processOrderQueue = async (job) => {
   const { orderId, type } = job.data;

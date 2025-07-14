@@ -9,7 +9,7 @@ import {
   Truck,
   Zap,
   Navigation,
-  BarChart3,
+
   Target
 } from 'lucide-react';
 import { useSupplyChain } from '../context/SupplyChainContext';
@@ -75,7 +75,7 @@ const RouteOptimization: React.FC = () => {
             { label: 'Avg Delivery Time', value: routeMetrics.avgDeliveryTime, icon: Clock, color: 'from-green-500 to-green-600' },
             { label: 'Fuel Savings', value: routeMetrics.fuelSavings, icon: Zap, color: 'from-yellow-500 to-yellow-600' },
             { label: 'On-Time Delivery', value: routeMetrics.onTimeDelivery, icon: Target, color: 'from-purple-500 to-purple-600' }
-          ].map((metric, index) => (
+          ].map((metric) => (
             <div
               key={metric.label}
               className="bg-white/70 backdrop-blur-sm rounded-2xl p-6 border border-white/20"
@@ -157,12 +157,12 @@ const RouteOptimization: React.FC = () => {
           <div className="p-6">
             {activeRoutes.length > 0 ? (
               <div className="space-y-4">
-                {activeRoutes.map((order, index) => (
+                {activeRoutes.map((order) => (
                   <motion.div
                     key={order.id}
                     initial={{ x: -20, opacity: 0 }}
                     animate={{ x: 0, opacity: 1 }}
-                    transition={{ delay: 0.1 * index }}
+                    transition={{ delay: 0.1 }}
                     className="flex items-center justify-between p-4 bg-gray-50 rounded-xl"
                   >
                     <div className="flex items-center space-x-4">

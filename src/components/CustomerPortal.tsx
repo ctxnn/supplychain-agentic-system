@@ -10,7 +10,7 @@ import {
   CheckCircle,
   Truck,
   Package,
-  Search,
+
   Plus,
   Bot
 } from 'lucide-react';
@@ -23,9 +23,26 @@ const CustomerPortal: React.FC = () => {
   const { sendMessage } = useAgents();
   const [chatInput, setChatInput] = useState('');
   const [activeTab, setActiveTab] = useState<'chat' | 'orders' | 'track'>('chat');
-  const [chatHistory, setChatHistory] = useState([
+  // Define types for WebSocket responses
+  interface WebSocketResponse {
+    content: string;
+    type?: string;
+    from?: string;
+    timestamp?: string;
+    [key: string]: any; // Allow additional properties
+  }
+  
+  type MessageContent = string | WebSocketResponse;
+  
+  interface ChatMessage {
+    role: 'assistant' | 'user';
+    content: MessageContent;
+    timestamp: Date | string;
+  }
+
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([
     {
-      role: 'assistant' as const,
+      role: 'assistant',
       content: "Hello! I'm your AI shopping assistant powered by LangGraph. I can help you find products, place orders, and track deliveries using natural language. What can I help you with today?",
       timestamp: new Date()
     }
@@ -33,57 +50,156 @@ const CustomerPortal: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
 
   const handleSendMessage = async () => {
-    if (!chatInput.trim() || isProcessing) return;
-    
-    const userMessage = {
-      role: 'user' as const,
-      content: chatInput,
-      timestamp: new Date()
-    };
-
-    setChatHistory(prev => [...prev, userMessage]);
-    setChatInput('');
-    setIsProcessing(true);
-
     try {
-      // Send message to AI agent
-      const response = await sendMessage(chatInput);
+      if (!chatInput.trim() || isProcessing) return;
       
-      const assistantMessage = {
-        role: 'assistant' as const,
-        content: response,
+      // Create user message
+      const userMessage: ChatMessage = {
+        role: 'user',
+        content: chatInput,
         timestamp: new Date()
       };
 
-      setChatHistory(prev => [...prev, assistantMessage]);
+      // Update UI optimistically
+      setChatHistory(prev => [...prev, userMessage]);
+      const currentInput = chatInput;
+      setChatInput('');
+      setIsProcessing(true);
 
-      // Simulate order creation for demo
-      if (chatInput.toLowerCase().includes('order') || chatInput.toLowerCase().includes('buy')) {
-        const newOrder = {
-          id: `ORD-${Date.now()}`,
-          customerId: 'CUST-AI',
-          items: [
-            { sku: 'SKU-001', name: 'AI Recommended Product', quantity: 1, price: 19.99 }
-          ],
-          status: 'pending' as const,
-          storeId: 'STORE-001',
-          createdAt: new Date(),
-          estimatedDelivery: new Date(Date.now() + 3600000)
+      try {
+        // Send message to AI agent
+        console.log('Sending message:', currentInput);
+        const response = await sendMessage(currentInput);
+        console.log('Received response:', response);
+        
+        // Handle the response
+        const processResponse = (response: any): { content: string; data?: any } => {
+          if (typeof response === 'string') return { content: response };
+          if (response?.content) return { content: response.content, data: response };
+          return { content: 'I received your message.', data: response };
         };
+        
+        const { content } = processResponse(response);
+        
+        // Add assistant's response to chat
+        const assistantMessage: ChatMessage = {
+          role: 'assistant',
+          content,
+          timestamp: new Date()
+        };
+        setChatHistory(prev => [...prev, assistantMessage]);
 
-        dispatch({ type: 'ADD_ORDER', payload: newOrder });
-        dispatch({ 
-          type: 'ADD_NOTIFICATION', 
-          payload: { message: `AI Agent processed order ${newOrder.id}`, type: 'success' }
+        // Handle order creation if this is an order request
+        const isOrderRequest = currentInput.toLowerCase().includes('order') || 
+                              currentInput.toLowerCase().includes('buy');
+        
+        if (isOrderRequest) {
+          // Extract quantity and product from the message
+          const quantityMatch = currentInput.match(/\d+/);
+          const quantity = quantityMatch ? parseInt(quantityMatch[0], 10) : 1;
+          
+          // Determine the product being ordered
+          let product = {
+            sku: 'SKU-001',
+            name: 'Organic Bananas',
+            price: 2.99
+          };
+          
+          if (currentInput.toLowerCase().includes('yogurt') || currentInput.toLowerCase().includes('yoghurt')) {
+            product = {
+              sku: 'SKU-002',
+              name: 'Greek Yogurt',
+              price: 5.99
+            };
+          } else if (currentInput.toLowerCase().includes('headphone')) {
+            product = {
+              sku: 'SKU-003',
+              name: 'Wireless Headphones',
+              price: 129.99
+            };
+          }
+          
+          // Create a new order
+          const newOrder = {
+            id: `ORD-${Date.now()}`,
+            customerId: 'CUST-AI',
+            items: [
+              { 
+                ...product,
+                quantity: quantity || 1
+              }
+            ],
+            status: 'pending' as const,
+            storeId: 'STORE-001',
+            createdAt: new Date(),
+            estimatedDelivery: new Date(Date.now() + 3600000) // 1 hour from now
+          };
+
+          // Add the order to the state
+          dispatch({ 
+            type: 'ADD_ORDER', 
+            payload: newOrder 
+          });
+          
+          // Add a notification
+          dispatch({ 
+            type: 'ADD_NOTIFICATION', 
+            payload: { 
+              id: `notif-${Date.now()}`,
+              message: `Order #${newOrder.id} has been placed successfully!`, 
+              type: 'success',
+              timestamp: new Date()
+            }
+          });
+          
+          // Update the chat with order confirmation if not already in the response
+          if (!content.includes('order') && !content.includes('Order')) {
+            const itemName = product.name.toLowerCase();
+            const plural = quantity > 1 ? (itemName.endsWith('s') ? `${itemName}es` : `${itemName}s`) : itemName;
+            const orderConfirmation: ChatMessage = {
+              role: 'assistant',
+              content: `I've placed an order for ${quantity} ${quantity > 1 ? plural : itemName}. Your order #${newOrder.id} is being processed.`,
+              timestamp: new Date()
+            };
+            setChatHistory(prev => [...prev, orderConfirmation]);
+          }
+        }
+      } catch (error) {
+        console.error('Error in handleSendMessage:', error);
+        
+        // Revert optimistic update on error
+        setChatHistory(prev => {
+          const newHistory = [...prev];
+          const lastMessage = newHistory[newHistory.length - 1];
+          if (lastMessage && lastMessage.role === 'user' && lastMessage.content === userMessage.content) {
+            newHistory.pop();
+          }
+          return newHistory;
+        });
+        
+        const errorMessage = {
+          role: 'assistant' as const,
+          content: "I apologize, but I'm having trouble processing your request right now. Please try again in a moment.",
+          timestamp: new Date()
+        };
+        
+        setChatHistory(prev => [...prev, errorMessage]);
+        
+        // Show error notification
+        dispatch({
+          type: 'ADD_NOTIFICATION',
+          payload: {
+            id: `error-${Date.now()}`,
+            message: 'Failed to send message',
+            type: 'error',
+            timestamp: new Date()
+          }
         });
       }
     } catch (error) {
-      const errorMessage = {
-        role: 'assistant' as const,
-        content: "I apologize, but I'm having trouble processing your request right now. Please try again in a moment.",
-        timestamp: new Date()
-      };
-      setChatHistory(prev => [...prev, errorMessage]);
+      console.error('Unexpected error in handleSendMessage:', error);
+      // Show a user-friendly error message
+      alert('An unexpected error occurred. Please refresh the page and try again.');
     } finally {
       setIsProcessing(false);
     }
@@ -150,7 +266,7 @@ const CustomerPortal: React.FC = () => {
           ].map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
+              onClick={() => setActiveTab(tab.id as 'chat' | 'orders' | 'track')}
               className={`flex-1 flex items-center justify-center space-x-2 py-3 px-4 rounded-xl transition-all duration-300 ${
                 activeTab === tab.id
                   ? 'bg-primary-500 text-white shadow-lg'
@@ -180,32 +296,44 @@ const CustomerPortal: React.FC = () => {
             
             <div className="h-96 p-6 overflow-y-auto">
               <div className="space-y-4">
-                {chatHistory.map((message, index) => (
-                  <div key={index} className={`flex items-start space-x-3 ${
-                    message.role === 'user' ? 'justify-end' : ''
-                  }`}>
-                    {message.role === 'assistant' && (
-                      <div className="w-8 h-8 bg-gradient-to-r from-primary-500 to-primary-600 rounded-full flex items-center justify-center">
-                        <Bot className="w-4 h-4 text-white" />
-                      </div>
-                    )}
-                    <div className={`rounded-2xl p-4 max-w-xs ${
-                      message.role === 'user' 
-                        ? 'bg-primary-500 text-white rounded-tr-sm' 
-                        : 'bg-gray-50 text-gray-800 rounded-tl-sm'
+                {chatHistory.map((message, index: number) => {
+                  // Ensure we're always working with the message content
+                  const content = typeof message.content === 'string' 
+                    ? message.content 
+                    : message.content?.content || 'No content';
+                  
+                  // Handle both Date objects and ISO strings for timestamp
+                  const timestamp = message.timestamp instanceof Date 
+                    ? message.timestamp 
+                    : new Date(message.timestamp || Date.now());
+                  
+                  return (
+                    <div key={index} className={`flex items-start space-x-3 ${
+                      message.role === 'user' ? 'justify-end' : ''
                     }`}>
-                      <p>{message.content}</p>
-                      <p className={`text-xs mt-2 ${
-                        message.role === 'user' ? 'text-primary-100' : 'text-gray-500'
+                      {message.role === 'assistant' && (
+                        <div className="w-8 h-8 bg-gradient-to-r from-primary-500 to-primary-600 rounded-full flex items-center justify-center">
+                          <Bot className="w-4 h-4 text-white" />
+                        </div>
+                      )}
+                      <div className={`rounded-2xl p-4 max-w-xs ${
+                        message.role === 'user' 
+                          ? 'bg-primary-500 text-white rounded-tr-sm' 
+                          : 'bg-gray-50 text-gray-800 rounded-tl-sm'
                       }`}>
-                        {message.timestamp.toLocaleTimeString()}
-                      </p>
+                        <p>{content}</p>
+                        <p className={`text-xs mt-2 ${
+                          message.role === 'user' ? 'text-primary-100' : 'text-gray-500'
+                        }`}>
+                          {timestamp?.toLocaleTimeString()}
+                        </p>
+                      </div>
+                      {message.role === 'user' && (
+                        <div className="w-8 h-8 bg-gray-300 rounded-full"></div>
+                      )}
                     </div>
-                    {message.role === 'user' && (
-                      <div className="w-8 h-8 bg-gray-300 rounded-full"></div>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
                 {isProcessing && (
                   <div className="flex items-start space-x-3">
                     <div className="w-8 h-8 bg-gradient-to-r from-primary-500 to-primary-600 rounded-full flex items-center justify-center">
@@ -223,7 +351,13 @@ const CustomerPortal: React.FC = () => {
               </div>
             </div>
             
-            <div className="p-6 border-t border-gray-100">
+            <form 
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSendMessage();
+              }}
+              className="p-6 border-t border-gray-100"
+            >
               <div className="flex space-x-3">
                 <input
                   type="text"
@@ -231,19 +365,18 @@ const CustomerPortal: React.FC = () => {
                   onChange={(e) => setChatInput(e.target.value)}
                   placeholder="Try: 'I need some groceries for dinner' or 'Order 2 bananas and yogurt'"
                   className="flex-1 px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
                   disabled={isProcessing}
                 />
                 <button
-                  onClick={handleSendMessage}
-                  disabled={isProcessing}
+                  type="submit"
+                  disabled={!chatInput.trim() || isProcessing}
                   className="px-6 py-3 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-xl hover:from-primary-600 hover:to-primary-700 transition-all duration-300 flex items-center space-x-2 disabled:opacity-50"
                 >
                   <Plus className="w-4 h-4" />
                   <span>Send</span>
                 </button>
               </div>
-            </div>
+            </form>
           </motion.div>
         )}
 
@@ -254,7 +387,7 @@ const CustomerPortal: React.FC = () => {
             animate={{ y: 0, opacity: 1 }}
             className="space-y-6"
           >
-            {state.orders.map((order, index) => {
+            {state.orders.map((order, index: number) => {
               const StatusIcon = statusIcons[order.status];
               return (
                 <motion.div
@@ -280,7 +413,7 @@ const CustomerPortal: React.FC = () => {
                   </div>
                   
                   <div className="space-y-2 mb-4">
-                    {order.items.map((item, itemIndex) => (
+                    {order.items.map((item, itemIndex: number) => (
                       <div key={itemIndex} className="flex items-center justify-between py-2">
                         <div className="flex items-center space-x-3">
                           <div className="w-8 h-8 bg-gray-100 rounded-lg"></div>
@@ -350,7 +483,7 @@ const CustomerPortal: React.FC = () => {
                       { status: 'AI Route Calculated', time: '2:35 PM', completed: true },
                       { status: 'Out for Delivery', time: '3:15 PM', completed: true },
                       { status: 'Delivered', time: 'Expected 3:30 PM', completed: false }
-                    ].map((step, index) => (
+                    ].map((step, index: number) => (
                       <div key={index} className="flex items-center space-x-3">
                         <div className={`w-3 h-3 rounded-full ${step.completed ? 'bg-green-400' : 'bg-gray-300'}`}></div>
                         <div className="flex-1 flex items-center justify-between">

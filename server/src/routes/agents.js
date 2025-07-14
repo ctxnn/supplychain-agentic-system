@@ -1,9 +1,13 @@
 import express from 'express';
-import { authenticate, authorize } from '../middleware/auth.js';
+import { WorkflowOrchestrator } from '../agents/WorkflowOrchestrator.js';
+import { authenticate as auth } from '../middleware/auth.js';
 import { logger } from '../utils/logger.js';
 import { getQueues } from '../config/queues.js';
 
 const router = express.Router();
+
+// Initialize the workflow orchestrator
+const orchestrator = new WorkflowOrchestrator();
 
 // Agent health status
 const agentHealth = {
@@ -15,321 +19,502 @@ const agentHealth = {
   'notification-agent': { status: 'healthy', lastCheck: new Date(), messagesProcessed: 0 }
 };
 
+// TEST ENDPOINT - No authentication required (for easy testing)
+router.post('/test/customer-query', async (req, res) => {
+  try {
+    const { query } = req.body;
+    
+    if (!query) {
+      return res.status(400).json({
+        success: false,
+        message: 'Query is required'
+      });
+    }
+
+    logger.info('Testing customer query', { query });
+    
+    const response = await orchestrator.handleCustomerQuery(query);
+    
+    res.json({
+      success: true,
+      data: response,
+      message: 'AI Agent Test Successful!'
+    });
+  } catch (error) {
+    logger.error('Customer query test failed:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to process customer query',
+      error: error.message
+    });
+  }
+});
+
+// TEST ENDPOINT - No authentication required (for easy testing)
+router.post('/test/workflow', async (req, res) => {
+  try {
+    const { order } = req.body;
+    
+    if (!order) {
+      return res.status(400).json({
+        success: false,
+        message: 'Order data is required'
+      });
+    }
+
+    logger.info('Testing workflow', { orderId: order.id });
+    
+    const result = await orchestrator.runWorkflow({ order });
+    
+    res.json({
+      success: true,
+      data: result,
+      message: 'AI Workflow Test Successful!'
+    });
+  } catch (error) {
+    logger.error('Workflow test failed:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to execute workflow',
+      error: error.message
+    });
+  }
+});
+
 // @route   GET /api/agents/health
 // @desc    Get agent health status
 // @access  Private (Admin, Store Manager)
 router.get('/health',
-  authenticate,
-  authorize('admin', 'store_manager'),
+  auth,
   async (req, res) => {
     try {
-      // Update health status with queue information
-      const queues = getQueues();
-      const queueStats = {};
-
-      for (const [queueName, queue] of Object.entries(queues)) {
-        if (queue) {
-          const waiting = await queue.getWaiting();
-          const active = await queue.getActive();
-          const completed = await queue.getCompleted();
-          const failed = await queue.getFailed();
-
-          queueStats[queueName] = {
-            waiting: waiting.length,
-            active: active.length,
-            completed: completed.length,
-            failed: failed.length
-          };
-        }
-      }
-
+      const health = await orchestrator.getAgentHealth();
       res.json({
         success: true,
-        data: {
-          agents: agentHealth,
-          queues: queueStats,
-          timestamp: new Date()
-        }
+        data: health,
+        timestamp: new Date().toISOString()
       });
-
     } catch (error) {
-      logger.error('Agent health check error:', error);
+      logger.error('Agent health check failed:', error);
       res.status(500).json({
         success: false,
-        message: 'Server error while checking agent health'
+        message: 'Failed to get agent health status',
+        error: error.message
       });
     }
   }
 );
 
-// @route   POST /api/agents/message
-// @desc    Send message to agent
-// @access  Private
-router.post('/message',
-  authenticate,
+// @route   GET /api/agents/status
+// @desc    Get system status
+// @access  Private (Admin, Store Manager)
+router.get('/status',
+  auth,
   async (req, res) => {
     try {
-      const { to, type, content, data } = req.body;
+      const status = await orchestrator.getSystemStatus();
+      res.json({
+        success: true,
+        data: status
+      });
+    } catch (error) {
+      logger.error('System status check failed:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to get system status',
+        error: error.message
+      });
+    }
+  }
+);
 
-      if (!to || !type || !content) {
+// @route   POST /api/agents/workflow
+// @desc    Run complete workflow
+// @access  Private (Admin, Store Manager)
+router.post('/workflow',
+  auth,
+  async (req, res) => {
+    try {
+      const { order } = req.body;
+      
+      if (!order) {
         return res.status(400).json({
           success: false,
-          message: 'Agent ID, message type, and content are required'
+          message: 'Order data is required'
         });
       }
 
-      const message = {
-        id: `msg_${Date.now()}`,
-        from: req.user.role,
-        to,
-        type,
-        content,
-        data,
-        timestamp: new Date(),
-        status: 'sent',
-        userId: req.user._id
-      };
-
-      // Route message to appropriate queue based on agent type
-      const { orderQueue, inventoryQueue, notificationQueue } = getQueues();
-
-      switch (to) {
-        case 'inventory-agent':
-          await inventoryQueue.add('agent_message', {
-            type: 'agent_message',
-            data: message
-          });
-          break;
-        case 'notification-agent':
-          await notificationQueue.add('agent_message', {
-            type: 'agent_message',
-            data: message
-          });
-          break;
-        default:
-          await orderQueue.add('agent_message', {
-            type: 'agent_message',
-            data: message
-          });
-      }
-
-      // Update agent health
-      if (agentHealth[to]) {
-        agentHealth[to].messagesProcessed++;
-        agentHealth[to].lastCheck = new Date();
-      }
-
-      logger.info(`Message sent to ${to} from ${req.user.email}: ${content}`);
-
+      logger.info('Starting new workflow', { orderId: order.id });
+      
+      const result = await orchestrator.runWorkflow({ order });
+      
       res.json({
         success: true,
-        message: 'Message sent to agent successfully',
-        data: { messageId: message.id }
+        data: result,
+        message: 'Workflow completed successfully'
       });
-
     } catch (error) {
-      logger.error('Send agent message error:', error);
+      logger.error('Workflow execution failed:', error);
       res.status(500).json({
         success: false,
-        message: 'Server error while sending message to agent'
+        message: 'Failed to execute workflow',
+        error: error.message
       });
     }
   }
 );
 
-// @route   POST /api/agents/customer/chat
-// @desc    Send chat message to customer agent
-// @access  Private
-router.post('/customer/chat',
-  authenticate,
+// @route   GET /api/agents/workflow/:workflowId
+// @desc    Get workflow status
+// @access  Private (Admin, Store Manager)
+router.get('/workflow/:workflowId',
+  auth,
   async (req, res) => {
     try {
-      const { message } = req.body;
+      const { workflowId } = req.params;
+      const status = await orchestrator.getWorkflowStatus(workflowId);
+      
+      if (status.error) {
+        return res.status(404).json({
+          success: false,
+          message: status.error
+        });
+      }
+      
+      res.json({
+        success: true,
+        data: status
+      });
+    } catch (error) {
+      logger.error('Workflow status check failed:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to get workflow status',
+        error: error.message
+      });
+    }
+  }
+);
 
-      if (!message) {
+// @route   GET /api/agents/workflow/history
+// @desc    Get workflow history
+// @access  Private (Admin, Store Manager)
+router.get('/workflow/history',
+  auth,
+  async (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit) || 10;
+      const history = await orchestrator.getWorkflowHistory(limit);
+      
+      res.json({
+        success: true,
+        data: history
+      });
+    } catch (error) {
+      logger.error('Workflow history retrieval failed:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to get workflow history',
+        error: error.message
+      });
+    }
+  }
+);
+
+// @route   POST /api/agents/customer/query
+// @desc    Handle customer query
+// @access  Private (Admin, Store Manager)
+router.post('/customer/query',
+  auth,
+  async (req, res) => {
+    try {
+      const { query } = req.body;
+      
+      if (!query) {
         return res.status(400).json({
           success: false,
-          message: 'Message content is required'
+          message: 'Query is required'
         });
       }
 
-      // Process customer chat message
-      const response = await processCustomerChat(message, req.user);
-
+      logger.info('Processing customer query', { query });
+      
+      const response = await orchestrator.handleCustomerQuery(query);
+      
       res.json({
         success: true,
-        data: { response }
+        data: response
       });
-
     } catch (error) {
-      logger.error('Customer chat error:', error);
+      logger.error('Customer query processing failed:', error);
       res.status(500).json({
         success: false,
-        message: 'Server error while processing chat message'
+        message: 'Failed to process customer query',
+        error: error.message
       });
     }
   }
 );
 
-// @route   POST /api/agents/inventory/check
-// @desc    Check inventory availability
-// @access  Private
-router.post('/inventory/check',
-  authenticate,
+// @route   PUT /api/agents/inventory
+// @desc    Update inventory
+// @access  Private (Admin, Store Manager)
+router.put('/inventory',
+  auth,
   async (req, res) => {
     try {
-      const { storeId, items } = req.body;
-
-      if (!storeId || !items || !Array.isArray(items)) {
+      const { storeId, sku, quantity } = req.body;
+      
+      if (!storeId || !sku || quantity === undefined) {
         return res.status(400).json({
           success: false,
-          message: 'Store ID and items array are required'
+          message: 'storeId, sku, and quantity are required'
         });
       }
 
-      // Add to inventory queue for processing
-      const { inventoryQueue } = getQueues();
-      await inventoryQueue.add('inventory_check', {
-        type: 'inventory_check',
-        data: { storeId, items, userId: req.user._id }
-      });
-
+      logger.info('Updating inventory', { storeId, sku, quantity });
+      
+      const result = await orchestrator.updateInventory(storeId, sku, quantity);
+      
       res.json({
         success: true,
-        message: 'Inventory check queued successfully'
+        data: result
       });
-
     } catch (error) {
-      logger.error('Inventory check error:', error);
+      logger.error('Inventory update failed:', error);
       res.status(500).json({
         success: false,
-        message: 'Server error while checking inventory'
+        message: 'Failed to update inventory',
+        error: error.message
       });
     }
   }
 );
 
-// @route   POST /api/agents/route/optimize
-// @desc    Request route optimization
-// @access  Private (Delivery Agent, Store Manager, Admin)
-router.post('/route/optimize',
-  authenticate,
-  authorize('delivery_agent', 'store_manager', 'admin'),
+// @route   PUT /api/agents/route/optimization
+// @desc    Set route optimization mode
+// @access  Private (Admin, Store Manager)
+router.put('/route/optimization',
+  auth,
   async (req, res) => {
     try {
-      const { orderId, optimizationMode = 'time' } = req.body;
-
-      if (!orderId) {
+      const { mode } = req.body;
+      
+      if (!mode || !['time', 'fuel', 'distance'].includes(mode)) {
         return res.status(400).json({
           success: false,
-          message: 'Order ID is required'
+          message: 'Valid mode (time, fuel, distance) is required'
         });
       }
 
-      // Add to order queue for route optimization
-      const { orderQueue } = getQueues();
-      await orderQueue.add('route_optimization', {
-        orderId,
-        type: 'route_optimization',
-        optimizationMode,
-        requestedBy: req.user._id
-      });
-
-      logger.info(`Route optimization requested for order ${orderId} by ${req.user.email}`);
-
+      logger.info('Setting route optimization mode', { mode });
+      
+      const result = await orchestrator.setRouteOptimization(mode);
+      
       res.json({
         success: true,
-        message: 'Route optimization queued successfully'
+        data: result
       });
-
     } catch (error) {
-      logger.error('Route optimization error:', error);
+      logger.error('Route optimization setting failed:', error);
       res.status(500).json({
         success: false,
-        message: 'Server error while requesting route optimization'
+        message: 'Failed to set route optimization mode',
+        error: error.message
       });
     }
   }
 );
 
-// @route   GET /api/agents/analytics
-// @desc    Get agent performance analytics
-// @access  Private (Admin)
-router.get('/analytics',
-  authenticate,
-  authorize('admin'),
+// @route   GET /api/agents/data/:agentName
+// @desc    Get agent-specific data
+// @access  Private (Admin, Store Manager)
+router.get('/data/:agentName',
+  auth,
   async (req, res) => {
     try {
-      const { startDate, endDate } = req.query;
-
-      // Calculate agent performance metrics
-      const analytics = {
-        messageVolume: {},
-        responseTime: {},
-        successRate: {},
-        uptime: {}
-      };
-
-      // Get queue statistics
-      const queues = getQueues();
-      for (const [queueName, queue] of Object.entries(queues)) {
-        if (queue) {
-          const completed = await queue.getCompleted();
-          const failed = await queue.getFailed();
-          
-          analytics.messageVolume[queueName] = completed.length + failed.length;
-          analytics.successRate[queueName] = completed.length / (completed.length + failed.length) || 0;
-        }
+      const { agentName } = req.params;
+      const data = await orchestrator.getAgentData(agentName);
+      
+      if (data.error) {
+        return res.status(404).json({
+          success: false,
+          message: data.error
+        });
       }
-
-      // Calculate uptime based on health checks
-      for (const [agentId, health] of Object.entries(agentHealth)) {
-        const uptimeHours = (Date.now() - health.lastCheck.getTime()) / (1000 * 60 * 60);
-        analytics.uptime[agentId] = Math.max(0, 24 - uptimeHours) / 24; // 24-hour uptime percentage
-      }
-
+      
       res.json({
         success: true,
-        data: {
-          analytics,
-          agentHealth,
-          timestamp: new Date()
-        }
+        data
       });
-
     } catch (error) {
-      logger.error('Agent analytics error:', error);
+      logger.error('Agent data retrieval failed:', error);
       res.status(500).json({
         success: false,
-        message: 'Server error while fetching agent analytics'
+        message: 'Failed to get agent data',
+        error: error.message
       });
     }
   }
 );
 
-// Helper function to process customer chat
-const processCustomerChat = async (message, user) => {
-  try {
-    // Simple NLP processing for demo
-    const lowerMessage = message.toLowerCase();
-    
-    if (lowerMessage.includes('order') || lowerMessage.includes('buy')) {
-      return "I can help you place an order! What items would you like to purchase?";
-    } else if (lowerMessage.includes('track') || lowerMessage.includes('delivery')) {
-      return "I can help you track your order. Please provide your order ID or I can look up your recent orders.";
-    } else if (lowerMessage.includes('cancel')) {
-      return "I can help you cancel an order. Please provide the order ID you'd like to cancel.";
-    } else if (lowerMessage.includes('store') || lowerMessage.includes('location')) {
-      return "I can help you find nearby stores. What's your location or zip code?";
-    } else if (lowerMessage.includes('help')) {
-      return "I'm here to help! I can assist with placing orders, tracking deliveries, finding stores, and answering questions about our services.";
-    } else {
-      return "Thank you for your message. I'm processing your request and will provide assistance shortly. How else can I help you today?";
+// @route   POST /api/agents/notification/status
+// @desc    Send status update notification
+// @access  Private (Admin, Store Manager)
+router.post('/notification/status',
+  auth,
+  async (req, res) => {
+    try {
+      const { orderId, status, additionalInfo } = req.body;
+      
+      if (!orderId || !status) {
+        return res.status(400).json({
+          success: false,
+          message: 'orderId and status are required'
+        });
+      }
+
+      logger.info('Sending status update notification', { orderId, status });
+      
+      const result = await orchestrator.notificationAgent.sendStatusUpdate(orderId, status, additionalInfo);
+      
+      res.json({
+        success: true,
+        data: result
+      });
+    } catch (error) {
+      logger.error('Status notification failed:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to send status notification',
+        error: error.message
+      });
     }
-  } catch (error) {
-    logger.error('Customer chat processing error:', error);
-    return "I apologize, but I'm having trouble processing your request right now. Please try again in a moment.";
   }
-};
+);
+
+// @route   GET /api/agents/notification/history
+// @desc    Get notification history
+// @access  Private (Admin, Store Manager)
+router.get('/notification/history',
+  auth,
+  async (req, res) => {
+    try {
+      const { orderId } = req.query;
+      const history = orchestrator.notificationAgent.getNotificationHistory(orderId);
+      
+      res.json({
+        success: true,
+        data: history
+      });
+    } catch (error) {
+      logger.error('Notification history retrieval failed:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to get notification history',
+        error: error.message
+      });
+    }
+  }
+);
+
+// @route   PUT /api/agents/delivery/status
+// @desc    Update delivery status
+// @access  Private (Admin, Store Manager)
+router.put('/delivery/status',
+  auth,
+  async (req, res) => {
+    try {
+      const { orderId, status, location } = req.body;
+      
+      if (!orderId || !status) {
+        return res.status(400).json({
+          success: false,
+          message: 'orderId and status are required'
+        });
+      }
+
+      logger.info('Updating delivery status', { orderId, status });
+      
+      const result = await orchestrator.deliveryAgent.updateDeliveryStatus(orderId, status, location);
+      
+      res.json({
+        success: true,
+        data: result
+      });
+    } catch (error) {
+      logger.error('Delivery status update failed:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to update delivery status',
+        error: error.message
+      });
+    }
+  }
+);
+
+// @route   GET /api/agents/delivery/driver/:driverId
+// @desc    Get driver status
+// @access  Private (Admin, Store Manager)
+router.get('/delivery/driver/:driverId',
+  auth,
+  async (req, res) => {
+    try {
+      const { driverId } = req.params;
+      const status = await orchestrator.deliveryAgent.getDriverStatus(driverId);
+      
+      if (status.error) {
+        return res.status(404).json({
+          success: false,
+          message: status.error
+        });
+      }
+      
+      res.json({
+        success: true,
+        data: status
+      });
+    } catch (error) {
+      logger.error('Driver status check failed:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to get driver status',
+        error: error.message
+      });
+    }
+  }
+);
+
+// @route   GET /api/agents/store/:storeId
+// @desc    Get store status
+// @access  Private (Admin, Store Manager)
+router.get('/store/:storeId',
+  auth,
+  async (req, res) => {
+    try {
+      const { storeId } = req.params;
+      const status = await orchestrator.storeManagerAgent.getStoreStatus(storeId);
+      
+      if (status.error) {
+        return res.status(404).json({
+          success: false,
+          message: status.error
+        });
+      }
+      
+      res.json({
+        success: true,
+        data: status
+      });
+    } catch (error) {
+      logger.error('Store status check failed:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to get store status',
+        error: error.message
+      });
+    }
+  }
+);
 
 export default router;

@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Request, Response } from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
@@ -15,6 +15,7 @@ import { setupQueues } from './config/queues.js';
 import { logger } from './utils/logger.js';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
 import { setupSocketHandlers } from './sockets/socketHandlers.js';
+import { setupAgentHandlers } from './sockets/agentHandlers.ts';
 
 // Import routes
 import authRoutes from './routes/auth.js';
@@ -78,7 +79,7 @@ app.use(hpp());
 app.use(compression());
 
 // Health check endpoint
-app.get('/health', (req, res) => {
+app.get('/health', (req: Request, res: Response) => {
   res.status(200).json({
     status: 'OK',
     timestamp: new Date().toISOString(),
@@ -109,8 +110,11 @@ async function startServer() {
     // Setup message queues
     await setupQueues();
     
-    // Setup Socket.IO handlers
+    // Setup socket handlers
     setupSocketHandlers(io);
+
+    // Setup agent-specific WebSocket handlers
+    setupAgentHandlers(io);
     
     const PORT = process.env.PORT || 3001;
     

@@ -1,4 +1,3 @@
-import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import Dashboard from './components/Dashboard';
@@ -10,11 +9,14 @@ import RouteOptimization from './components/RouteOptimization';
 import AgentCommunication from './components/AgentCommunication';
 import { SupplyChainProvider } from './context/SupplyChainContext';
 import { AgentProvider } from './context/AgentContext';
+import { WebSocketProvider } from './context/WebSocketContext';
+import ErrorBoundary from './components/ErrorBoundary';
 
 function App() {
   return (
-    <AgentProvider>
-      <SupplyChainProvider>
+    <WebSocketProvider>
+      <AgentProvider>
+        <SupplyChainProvider>
         <Router>
           <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
             <motion.div
@@ -25,7 +27,11 @@ function App() {
             >
               <Routes>
                 <Route path="/" element={<Dashboard />} />
-                <Route path="/customer" element={<CustomerPortal />} />
+                <Route path="/customer" element={
+                  <ErrorBoundary>
+                    <CustomerPortal />
+                  </ErrorBoundary>
+                } />
                 <Route path="/store-manager" element={<StoreManagerDashboard />} />
                 <Route path="/delivery" element={<DeliveryAgentApp />} />
                 <Route path="/inventory" element={<InventoryAgent />} />
@@ -35,8 +41,9 @@ function App() {
             </motion.div>
           </div>
         </Router>
-      </SupplyChainProvider>
-    </AgentProvider>
+        </SupplyChainProvider>
+      </AgentProvider>
+    </WebSocketProvider>
   );
 }
 

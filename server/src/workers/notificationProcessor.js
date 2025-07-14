@@ -1,7 +1,7 @@
 import User from '../models/User.js';
 import Order from '../models/Order.js';
 import { logger } from '../utils/logger.js';
-import { io } from '../server.js';
+import { io } from '../server.ts';
 
 const processNotificationQueue = async (job) => {
   const { type, data } = job.data;
